@@ -1,0 +1,18 @@
+<resources>
+    <string name="app_name">Calendar</string>
+    <string name="offline_title">No Internet Connection</string>
+    <string name="offline_message">Unable to load Calendar. Check your Wi-Fi or mobile data connection and try again.</string>
+    <string name="error_title">Unable to Load Page</string>
+    <string name="error_message">Something went wrong while connecting to Calendar. Please try again.</string>
+    <string name="retry_button">Try Again</string>
+    <string name="open_in_browser">Open in Browser</string>
+    <string name="loading_calendar">Loading Calendar…</string>
+    <string name="download_started">Downloading %1$s…</string>
+    <string name="download_failed">Download failed. Opening in browser instead.</string>
+    <string name="file_saved">File saved successfully</string>
+    <string name="file_save_failed">Could not save file</string>
+    <string name="no_app_for_link">No app installed to open this link</string>
+    <string name="cd_app_logo">Calendar logo</string>
+    <string name="cd_offline_icon">No connection</string>
+    <string name="cd_retry_icon">Retry loading</string>
+</resources>

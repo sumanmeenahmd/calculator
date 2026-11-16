@@ -1,0 +1,6 @@
+{
+  "name": "Calendar",
+  "description": "Full-screen Android WebView app for calendar-5ce.pages.dev with automated release APK CI/CD builds.",
+  "requestFramePermissions": [],
+  "majorCapabilities": ["MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"]
+}
