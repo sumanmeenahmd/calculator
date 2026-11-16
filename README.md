@@ -13,30 +13,10 @@ Full-screen Jetpack Compose + WebView Android app wrapping `https://calendar-5ce
 
 ## Automated Release APK & Seamless Updates (GitHub Actions)
 
-For Android to **install new APKs as updates** over older versions without uninstalling:
-1. Every build must use the **same signing keystore** (`my-upload-key.jks` with alias `upload`).
-2. Every build must have a **higher `versionCode`** (automatically set via `VERSION_CODE=${{ github.run_number }}` in CI).
-
-### One-Time Signing Setup (2 minutes)
-
-1. Generate your permanent release keystore locally (keep this file safe and never commit it to Git):
-   ```bash
-   keytool -genkeypair -v -keystore my-upload-key.jks -keyalg RSA -keysize 2048 -validity 10000 -alias upload
-   ```
-2. Convert `my-upload-key.jks` to base64:
-   - **Linux / macOS:**
-     ```bash
-     base64 -w 0 my-upload-key.jks
-     ```
-     *(on macOS use `base64 -i my-upload-key.jks | tr -d '\n'`)*
-   - **Windows PowerShell:**
-     ```powershell
-     [Convert]::ToBase64String([IO.File]::ReadAllBytes("my-upload-key.jks"))
-     ```
-3. In your GitHub repository, go to **Settings → Secrets and variables → Actions → New repository secret** and add these 3 secrets:
-   - `SIGNING_KEYSTORE_BASE64`: the base64 output from step 2
-   - `STORE_PASSWORD`: the keystore password you entered in `keytool`
-   - `KEY_PASSWORD`: the key password for alias `upload`
-
-### Every Push Builds & Releases Automatically
-- On every `git push` to `main` or `master`, `.github/workflows/android-release.yml` runs unit tests, increments `versionCode`, builds the signed `app-release.apk`, uploads it as an Actions artifact, and creates a new **GitHub Release** (`v1.0.<run_number>`) with `Calendar-v1.0.<run_number>.apk` ready to download and update directly on Android.
+Every `git push` to `main` or `master` runs `.github/workflows/android-release.yml`, which:
+1. Runs unit tests (`gradle :app:testDebugUnitTest`).
+2. Increments `versionCode` (`github.run_number`) and `versionName` (`1.0.<run_number>`) automatically.
+3. Signs `app-release.apk` with a **consistent signing key** so every new APK installs directly as an **update** over older builds without uninstalling:
+   - **Zero-Config Default**: If custom secrets are not configured, the workflow automatically generates a keystore on the first run and stores it in a private **Draft Release** (`Signing Keystore Vault (Do Not Delete)`), reusing that exact same keystore on all future pushes.
+   - **Optional Custom Keystore (Recommended for Play Store)**: If you prefer your own keystore, add `SIGNING_KEYSTORE_BASE64`, `STORE_PASSWORD`, and `KEY_PASSWORD` under **Settings → Secrets and variables → Actions** and the workflow will use them instead.
+4. Uploads `Calendar-v1.0.<run_number>.apk` to **Workflow Artifacts** and publishes a new **GitHub Release** (`v1.0.<run_number>`).

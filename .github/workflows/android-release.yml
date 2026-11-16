@@ -10,6 +10,10 @@ on:
 permissions:
   contents: write
 
+concurrency:
+  group: android-release-${{ github.ref }}
+  cancel-in-progress: false
+
 jobs:
   build-release:
     name: Build Signed Release APK
@@ -30,26 +34,64 @@ jobs:
         with:
           gradle-version: "9.3.1"
 
-      - name: Verify and decode release signing keystore
+      - name: Prepare Release Signing Keystore
         env:
+          GH_TOKEN: ${{ github.token }}
           SIGNING_KEYSTORE_BASE64: ${{ secrets.SIGNING_KEYSTORE_BASE64 }}
-          STORE_PASSWORD: ${{ secrets.STORE_PASSWORD }}
-          KEY_PASSWORD: ${{ secrets.KEY_PASSWORD }}
+          SECRET_STORE_PASSWORD: ${{ secrets.STORE_PASSWORD }}
+          SECRET_KEY_PASSWORD: ${{ secrets.KEY_PASSWORD }}
         run: |
-          if [ -z "$SIGNING_KEYSTORE_BASE64" ] || [ -z "$STORE_PASSWORD" ] || [ -z "$KEY_PASSWORD" ]; then
-            echo "::error::Missing release signing secrets. Add SIGNING_KEYSTORE_BASE64, STORE_PASSWORD, and KEY_PASSWORD in Repository Settings -> Secrets and variables -> Actions (see README.md)."
-            exit 1
+          if [ -n "$SIGNING_KEYSTORE_BASE64" ] && [ -n "$SECRET_STORE_PASSWORD" ] && [ -n "$SECRET_KEY_PASSWORD" ]; then
+            echo "Using release signing keystore from GitHub Secrets."
+            echo "$SIGNING_KEYSTORE_BASE64" | tr -d '\r\n' | base64 --decode > my-upload-key.jks
+            echo "STORE_PASSWORD=$SECRET_STORE_PASSWORD" >> "$GITHUB_ENV"
+            echo "KEY_PASSWORD=$SECRET_KEY_PASSWORD" >> "$GITHUB_ENV"
+          else
+            echo "GitHub signing secrets not set — using automatic persistent keystore vault for consistent app updates."
+            AUTO_PASS="cal-${{ github.repository_id }}-upload-key"
+            echo "::add-mask::$AUTO_PASS"
+
+            RELEASE_ID=$(gh api --paginate "repos/${{ github.repository }}/releases" --jq '.[] | select(.tag_name == "keystore-vault") | .id' | head -n 1 || true)
+            if [ -n "$RELEASE_ID" ]; then
+              ASSET_ID=$(gh api "repos/${{ github.repository }}/releases/$RELEASE_ID/assets" --jq '.[] | select(.name == "my-upload-key.jks") | .id' | head -n 1 || true)
+              if [ -n "$ASSET_ID" ]; then
+                gh api -H "Accept: application/octet-stream" "repos/${{ github.repository }}/releases/assets/$ASSET_ID" > my-upload-key.jks
+              fi
+            fi
+
+            if [ ! -s my-upload-key.jks ]; then
+              echo "Generating persistent release keystore for first build..."
+              keytool -genkeypair -v \
+                -keystore my-upload-key.jks \
+                -keyalg RSA -keysize 2048 -validity 10000 \
+                -alias upload \
+                -storepass "$AUTO_PASS" \
+                -keypass "$AUTO_PASS" \
+                -dname "CN=Calendar App, OU=Mobile, O=Calendar, L=City, ST=State, C=US"
+
+              if [ -z "$RELEASE_ID" ]; then
+                gh release create keystore-vault my-upload-key.jks \
+                  --draft \
+                  --title "Signing Keystore Vault (Do Not Delete)" \
+                  --notes "Automatic persistent signing keystore so every push builds a Release APK with the same signature and updates cleanly on Android."
+              else
+                gh api -X POST \
+                  -H "Content-Type: application/octet-stream" \
+                  "https://uploads.github.com/repos/${{ github.repository }}/releases/$RELEASE_ID/assets?name=my-upload-key.jks" \
+                  --data-binary @my-upload-key.jks >/dev/null
+              fi
+            fi
+
+            echo "STORE_PASSWORD=$AUTO_PASS" >> "$GITHUB_ENV"
+            echo "KEY_PASSWORD=$AUTO_PASS" >> "$GITHUB_ENV"
           fi
-          echo "$SIGNING_KEYSTORE_BASE64" | tr -d '\r\n' | base64 --decode > my-upload-key.jks
+          echo "KEYSTORE_PATH=${{ github.workspace }}/my-upload-key.jks" >> "$GITHUB_ENV"
 
       - name: Run Unit Tests
         run: gradle :app:testDebugUnitTest
 
       - name: Build Signed Release APK
         env:
-          KEYSTORE_PATH: ${{ github.workspace }}/my-upload-key.jks
-          STORE_PASSWORD: ${{ secrets.STORE_PASSWORD }}
-          KEY_PASSWORD: ${{ secrets.KEY_PASSWORD }}
           VERSION_CODE: ${{ github.run_number }}
           VERSION_NAME: 1.0.${{ github.run_number }}
         run: gradle :app:assembleRelease
