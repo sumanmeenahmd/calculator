@@ -606,7 +606,6 @@ private fun createConfiguredWebView(
   with(webView.settings) {
     javaScriptEnabled = true
     domStorageEnabled = true
-    databaseEnabled = true
     useWideViewPort = true
     loadWithOverviewMode = true
     cacheMode = WebSettings.LOAD_DEFAULT
